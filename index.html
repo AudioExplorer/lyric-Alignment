@@ -40,21 +40,29 @@
                 <!-- Next section Right -->
                 <div class="vstack">
 
-                    <div id="noData" class="compressed-input">
+                    <div id="noData" class="medium-input">
+                        <button id="useMyData" onclick="return setDemoAssetsMode(true);">
+                            Use AudioShake Demo Assets
+                        </button>
+
                         <h3>Demo Assets</h3>
                         <div id="drop-zone">
                             <p>Drop your demo-asset.json file here</p>
                         </div>
 
-                        <div id="result-container">
+                        <!-- <div id="result-container">
                             <h2>JSON Data</h2>
                             <pre id="json-display"></pre>
-                        </div>
+                        </div> -->
                     </div>
 
                     <div id="hasData">
-                        <div class="compressed-input">
+                        <div class="medium-input">
+                            <button id="useMyData" onclick="return setDemoAssetsMode(false);">
+                                Use my own Assets
+                            </button>
                             <h3>Demo Assets</h3>
+
                             <select id="assetsList"></select>
                             <button id="loadAssetBtn">Load </button>
                         </div>
@@ -63,7 +71,7 @@
                             <select id="associatedAlignmentList"></select>
                             <button id="loadAssociatedAssetBtn">Load </button>
                         </div>
-                        <p>___________________________________________________</p>
+
                         <div class="compressed-input">
                             <h3>Alignments</h3>
                             <select id="alignmentList"></select>
