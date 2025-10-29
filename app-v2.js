@@ -760,8 +760,8 @@ els.authModal.addEventListener('click', (event) => {
 els.startBtn.addEventListener('click', async () => {
     try {
         if (!API_KEY) return alert('Authorize first.');
-       const sourceUrl = els.audioUrl.value.trim();
-       if (!sourceUrl) return alert('Enter an audio URL.');
+        const sourceUrl = els.audioUrl.value.trim();
+        if (!sourceUrl) return alert('Enter an audio URL.');
 
         setOutput('Creating task...');
         const task = await createTask(sourceUrl);
@@ -1302,7 +1302,7 @@ if (testListBtn) {
         setOutput('Testing: Listing tasks...');
         try {
             testOutput("");
-            const result = await listTasks(10);
+            const result = await listTasks(50);
             setOutput('Tasks listed (see debug below).');
             testOutput(result);
         } catch (e) {
