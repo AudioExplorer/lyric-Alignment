@@ -1,0 +1,426 @@
+ /*  Main styles for v2 */
+ body {
+     font-family: 'Roboto', sans-serif;
+     background: #fafafa;
+     color: #212121;
+     margin: 0;
+     padding: 0;
+ }
+
+ .container {
+     max-width: 1200px;
+     margin: 0 auto;
+     padding: 24px;
+ }
+
+ header {
+     background: #2196f3;
+     color: white;
+     padding: 16px;
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     border-radius: 8px;
+     margin-bottom: 24px;
+ }
+
+ .wide-input {
+     min-width: 90%;
+ }
+
+ .medium-input {
+     min-width: 50%;
+ }
+
+ .compressed-input {
+     min-width: 20%;
+ }
+
+ /* drag and drop support */
+
+
+ #drop-zone {
+     border: 2px dashed #ccc;
+     padding: 50px;
+     text-align: center;
+     width: 80%;
+     max-width: 600px;
+     transition: background-color 0.3s ease;
+     cursor: pointer;
+     background-color: #fff;
+     border-radius: 10px;
+ }
+
+ #drop-zone.dragover {
+     background-color: #e6f2ff;
+     border-color: #007bff;
+ }
+
+ #result-container {
+     margin-top: 20px;
+     width: 80%;
+     max-width: 600px;
+     background-color: #fff;
+     border: 1px solid #ddd;
+     border-radius: 10px;
+     padding: 20px;
+ }
+
+
+ .hstack {
+     display: flex;
+     /* horizontal layout */
+     flex-direction: row;
+     align-items: center;
+     /* vertical centering */
+     gap: 8px;
+     /* spacing between items */
+     background: white;
+     border-radius: 8px;
+     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+     padding: 16px;
+     margin-bottom: 16px;
+ }
+
+ .vstack {
+     display: flex;
+     /* enables flex layout */
+     flex-direction: column;
+     /* vertical layout */
+     align-items: flex-start;
+     /* horizontal alignment */
+     gap: 8px;
+     /* spacing between items */
+     background: white;
+     border-radius: 8px;
+     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+     padding: 16px;
+     margin-bottom: 16px;
+
+ }
+
+ section {
+     background: white;
+     border-radius: 8px;
+     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+     padding: 16px;
+     margin-bottom: 16px;
+ }
+
+ .media-layout {
+     display: flex;
+     flex-direction: row;
+     justify-content: center;
+     align-items: flex-start;
+     gap: 24px;
+     width: 100%;
+     margin: 0 auto;
+ }
+
+ /* Player section (fixed height box) */
+ .player-container {
+     flex: 0 0 auto;
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+ }
+
+ #player {
+     width: 100%;
+     max-width: 480px;
+     height: 480px;
+     /* fixed height for all media */
+     object-fit: contain;
+     /* centers portrait/landscape correctly */
+     border-radius: 8px;
+     background-color: #000;
+     /* consistent letterbox background */
+ }
+
+ /* Lyrics section (same fixed height as player) */
+ .lyrics-container {
+     flex: 0 0 auto;
+     display: flex;
+     flex-direction: column;
+     align-items: stretch;
+     height: 480px;
+     /* match player height */
+ }
+
+ #lyricsContainer {
+     flex: 1;
+     width: 100%;
+     max-width: 480px;
+     height: 100%;
+     overflow-y: auto;
+     border-radius: 8px;
+     background: #fff;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+     padding: 16px 24px;
+     box-sizing: border-box;
+ }
+
+ /* Safari flexbox fix */
+ @supports (-webkit-touch-callout: none) {
+     .media-layout {
+         justify-content: center;
+     }
+ }
+
+ .player,
+ .lyrics {
+     flex: 1 1 45%;
+     background: white;
+     border-radius: 8px;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+     padding: 16px;
+ }
+
+ #lyricsContainer {
+     height: 480px;
+     overflow-y: auto;
+     background: #fff;
+     border-radius: 8px;
+     padding: 1rem;
+ }
+
+ .debug-output textarea {
+     width: 100%;
+     height: 250px;
+     background: #f1f1f1;
+     border: none;
+     border-radius: 8px;
+     padding: 1rem;
+     font-family: monospace;
+     resize: none;
+ }
+
+ .mdc-button {
+     margin-top: 8px;
+     margin-right: 8px;
+ }
+
+ .audio-controls {
+     margin-top: 1rem;
+     text-align: center;
+ }
+
+ /* ===== Restore word-by-word lyric styling ===== */
+ #lyricsContainer {
+     white-space: normal;
+     line-height: 1.6;
+     font-size: 16px;
+     color: #212121;
+     padding: 16px 24px;
+     /* gutters */
+ }
+
+ #lyricsContainer .line {
+     display: block;
+     margin: 6px 0;
+ }
+
+ #lyricsContainer .word {
+     display: inline-block;
+     padding: 0 2px;
+     border-radius: 3px;
+     transition: background-color 120ms ease, color 120ms ease, transform 60ms ease;
+ }
+
+ #lyricsContainer .word.past {
+     color: #607d8b;
+     /* subtle, already sung */
+ }
+
+ #lyricsContainer .word.active {
+     background: #2962ff;
+     /* Material blue accent */
+     color: #fff;
+     transform: translateY(-1px);
+ }
+
+ #lyricsContainer .word.future {
+     color: #263238;
+     /* upcoming */
+ }
+
+ /* caret / current-line emphasis (optional hooks if your JS adds classes) */
+ #lyricsContainer .line.active {
+     background: rgba(41, 98, 255, 0.06);
+     border-left: 3px solid #2962ff;
+     padding-left: 8px;
+     border-radius: 4px;
+ }
+
+ /* ===== Layout reinforcements for player | lyrics columns ===== */
+ .media-layout {
+     align-items: flex-start;
+     /* keep tops aligned */
+ }
+
+ .player-container,
+ .lyrics-container {
+     min-width: 300px;
+ }
+
+ .player-container {
+     margin-right: auto;
+     /* keep player left */
+ }
+
+ .lyrics-container {
+     flex: 1;
+     min-width: 320px;
+     max-width: 640px;
+     display: flex;
+     flex-direction: column;
+     justify-content: flex-start;
+     align-self: flex-start;
+     height: 480px;
+     /* lock height to match video */
+     overflow: hidden;
+ }
+
+ #lyricsContainer {
+     flex: 1;
+     width: 100%;
+     height: 100%;
+     max-height: 480px;
+     overflow-y: auto;
+     border-radius: 8px;
+     background: #fff;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+     padding: 16px;
+     box-sizing: border-box;
+ }
+
+ /* Ensure MDC components don't collapse our custom sections */
+ section.player,
+ section.lyrics {
+     background: #fff;
+ }
+
+ /* ===== Cross-browser fixes for Safari + Chrome ===== */
+ .media-layout {
+     display: flex;
+     flex-direction: row;
+     align-items: flex-start;
+     justify-content: space-between;
+     gap: 24px;
+     flex-wrap: nowrap;
+     width: 100%;
+ }
+
+ /* Contain tall videos consistently */
+ #player {
+     width: 100%;
+     max-width: 480px;
+     max-height: 480px;
+     object-fit: contain;
+     border-radius: 8px;
+     background-color: #000;
+ }
+
+ /* Ensure player container doesn’t stretch vertically */
+ .player-container {
+     flex: 0 0 auto;
+     align-self: flex-start;
+     display: flex;
+     flex-direction: column;
+     justify-content: flex-start;
+ }
+
+ /* Keep lyrics properly aligned */
+ .lyrics-container {
+     flex: 1;
+     min-width: 320px;
+     max-width: 640px;
+     display: flex;
+     flex-direction: column;
+     justify-content: flex-start;
+     align-self: flex-start;
+     height: 480px;
+     /* lock height to match video */
+     overflow: hidden;
+ }
+
+ #lyricsContainer {
+     flex: 1;
+     width: 100%;
+     height: 100%;
+     max-height: 480px;
+     overflow-y: auto;
+     border-radius: 8px;
+     background: #fff;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+     padding: 16px;
+     box-sizing: border-box;
+ }
+
+ /* Safari flex overflow fix */
+ @supports (-webkit-touch-callout: none) {
+     .lyrics-container {
+         flex-shrink: 1;
+     }
+ }
+
+ /* Keep gutters consistent on both browsers */
+ .container {
+     padding-left: 32px;
+     padding-right: 32px;
+ }
+
+
+ /* ===== Fixed non-responsive layout for demo ===== */
+ .container {
+     max-width: none;
+     padding-left: 0;
+     padding-right: 0;
+     margin: 0 auto;
+ }
+
+ .media-layout {
+     display: flex;
+     flex-direction: row;
+     justify-content: center;
+     align-items: flex-start;
+     gap: 24px;
+     width: 100%;
+     margin: 0 auto;
+ }
+
+ .player-container,
+ .lyrics-container {
+     flex: 1 1 auto;
+     max-width: 50%;
+     display: flex;
+     flex-direction: column;
+     justify-content: flex-start;
+ }
+
+ #player {
+     width: 100%;
+     max-width: 480px;
+     max-height: 480px;
+     object-fit: contain;
+     border-radius: 8px;
+     background-color: #000;
+ }
+
+ #lyricsContainer {
+     width: 100%;
+     max-width: 480px;
+     max-height: 480px;
+     overflow-y: auto;
+     border-radius: 8px;
+     background: #fff;
+     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+     padding: 16px;
+ }
+
+ /* Safari alignment fix */
+ @supports (-webkit-touch-callout: none) {
+     .media-layout {
+         justify-content: center;
+     }
+ }

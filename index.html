@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AudioShake Lyrics Alignment</title>
+    <link rel="icon" href="mobile_logo.png" data-rh="true">
+    <!-- Material Design CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+
+    <link rel="stylesheet" href="main-styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1 class="md-typescale-display-medium">AudioShake Lyrics Alignment</h1>
+            <div id="output" class="output"></div>
+
+            <div id="authModal" class="modal" hidden>
+                <div class="modal-content">
+                    <h3>Enter API Key</h3>
+                    <form id="authForm" novalidate>
+                        <input id="apiKeyInput" type="password" placeholder="sk_..." />
+                        <div class="row">
+                            <button id="saveKeyBtn" type="submit">Save Key</button>
+                            <button id="cancelKeyBtn" type="button">Cancel</button>
+                        </div>
+                    </form>
+                    <small>Stored locally in IndexedDB.</small>
+                </div>
+            </div>
+            <button id="authBtn">Authorize</button>
+        </header>
+
+        <div class="vstack">
+            <section class="media-layout compressed-input">
+                <!-- Next section Right -->
+                <div class="vstack">
+
+                    <div id="noData" class="compressed-input">
+                        <h3>Demo Assets</h3>
+                        <div id="drop-zone">
+                            <p>Drop your demo-asset.json file here</p>
+                        </div>
+
+                        <div id="result-container">
+                            <h2>JSON Data</h2>
+                            <pre id="json-display"></pre>
+                        </div>
+                    </div>
+
+                    <div id="hasData">
+                        <div class="compressed-input">
+                            <h3>Demo Assets</h3>
+                            <select id="assetsList"></select>
+                            <button id="loadAssetBtn">Load </button>
+                        </div>
+                        <div class="compressed-input">
+                            <h3>Associated Alignments</h3>
+                            <select id="associatedAlignmentList"></select>
+                            <button id="loadAssociatedAssetBtn">Load </button>
+                        </div>
+                        <p>___________________________________________________</p>
+                        <div class="compressed-input">
+                            <h3>Alignments</h3>
+                            <select id="alignmentList"></select>
+                            <button id="loadBtn">Load Selected</button>
+                        </div>
+                        <div class="compressed-input">
+                            <h3>Associated Demo Assets</h3>
+                            <select id="associatedDemo AssetList"></select>
+                            <button id="loadAssociatedDemoAssetBtn">Load </button>
+                        </div>
+
+                    </div>
+                </div>
+                <!-- Player -->
+                <div class="player-container">
+                    <section class="player">
+                        <video id="player" width="640" controls crossorigin="anonymous" preload="auto"></video>
+                        <div class="vstack audio-controls">
+                            <label for="pan">Audio Pan (Hindi ← → English): </label>
+                            <input id="pan" type="range" min="-1" max="1" value="0" step="0.01" style="width:300px;">
+                            <label style="margin-left:1em;">
+                                <input type="checkbox" id="mixToBoth" checked> Mix to Both Speakers
+                            </label>
+                        </div>
+                    </section>
+                </div>
+                <!-- Lyrics -->
+                <div class="lyrics-container">
+                    <section class="lyrics" id="lyricsContainer"></section>
+                </div>
+            </section>
+        </div>
+
+
+    </div>
+
+    <div class="vstack">
+
+        <div class="wide-input">
+            <h3>Create Alignment</h3>
+            <input id="audioUrl" class="wide-input" placeholder="Paste a public audio URL" />
+            <button id="startBtn">Start Alignment</button>
+        </div>
+        <div class="medium-input">
+            <h3>Alignment Status</h3>
+            <input id="taskIdInput" class="medium-input" placeholder="Task ID" />
+            <button id="checkBtn">Check Status</button>
+        </div>
+
+        <progress id="progress" hidden max="100" value="0"></progress>
+        <div id="output" class="output"></div>
+    </div>
+
+
+
+    <hr />
+    <h3>Developer Debug Tools</h3>
+    <section class="debugApiButtons">
+        <h3>🔍 API Comparison Tests</h3>
+        <button id="testDemoAssetsBtn">Load Demo Assets</button>
+        <button id="testCreateBtn">Create Task (POST /tasks)</button>
+        <button id="testListBtn">List Tasks (GET /tasks)</button>
+        <button id="testGetByIdBtn">Get Task by ID (GET /tasks/:id)</button>
+        <button id="clearMetaBtn">Clear JSON Output</button>
+    </section>
+
+    <section class="debug-output">
+        <textarea id="alignmentMeta" class="alignment-meta" readonly></textarea>
+    </section>
+
+    </div>
+    <!-- end container class -->
+    <script src="app-v2.js"></script>
+
+</body>
+
+</html>

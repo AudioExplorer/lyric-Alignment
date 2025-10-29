@@ -1,0 +1,13 @@
+.DS_Store
+app-v2-backup.js
+demo-assets-config.json
+demo-assets.json
+dev-plan-vanila.md
+lyrics-demo.html
+main.css
+node_modules/*
+notes.md
+package-lock.json
+styles.css
+app.js
+
