@@ -67,7 +67,6 @@ function matchTasksToAssets(tasks = [], assets = []) {
 const API_BASE = 'https://api.audioshake.ai';
 const DB_NAME = 'audioshake_alignment_demo';
 const STORE_SETTINGS = 'settings';
-const STORE_ALIGNMENTS = 'alignments';
 
 // ===== Filter Helpers =====
 const FILTER_MODEL = 'alignment';
@@ -114,6 +113,8 @@ const els = {
 
     associatedAlignmentList: document.getElementById('associatedAlignmentList'),
     loadAssociatedAssetBtn: document.getElementById('loadAssociatedAssetBtn'),
+    associatedDemoAssetList: document.getElementById('associatedDemoAssetList'),
+    loadAssociatedDemoAssetBtn: document.getElementById('loadAssociatedDemoAssetBtn'),
 };
 
 let API_KEY = '';
@@ -122,8 +123,6 @@ let ctx, src, split, merge, gainL, gainR;
 
 let demoAssetsCache = [];
 let tasksCache = [];
-let currentAlignmentTask = null;
-
 function setDemoAssetsMode(hasAssets) {
     const noDataElement = document.getElementById('noData');
     const hasDataElement = document.getElementById('hasData');
@@ -133,6 +132,8 @@ function setDemoAssetsMode(hasAssets) {
 }
 
 setDemoAssetsMode(false);
+updateAssociatedAlignmentsForAsset(null);
+updateAssociatedDemoAssetsForTask(null);
 
 function normalizeDemoAssets(payload) {
     if (!payload) return [];
@@ -382,7 +383,6 @@ function openDb(version = 1) {
         req.onupgradeneeded = (event) => {
             const db = req.result;
             if (!db.objectStoreNames.contains(STORE_SETTINGS)) db.createObjectStore(STORE_SETTINGS);
-            if (!db.objectStoreNames.contains(STORE_ALIGNMENTS)) db.createObjectStore(STORE_ALIGNMENTS, { keyPath: 'taskId' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -408,54 +408,6 @@ async function dbGetSetting(key) {
         const req = tx.objectStore(STORE_SETTINGS).get(key);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(undefined);
-    });
-}
-
-async function saveAlignmentRecord(record) {
-    const db = await openDb();
-    console.log("DB Save Alignment", db)
-    return new Promise((res, rej) => {
-        const tx = db.transaction(STORE_ALIGNMENTS, 'readwrite');
-        tx.objectStore(STORE_ALIGNMENTS).put(record);
-        tx.oncomplete = () => res();
-        tx.onerror = () => rej(tx.error);
-    });
-}
-
-async function getAllAlignments() {
-    const db = await openDb();
-    console.log("DB Get all Tasks", db)
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_ALIGNMENTS, 'readonly');
-        const req = tx.objectStore(STORE_ALIGNMENTS).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function getAlignment(taskId) {
-    if (!taskId) return null;
-    const db = await openDb();
-    console.log("DB Geb by taskID", db)
-    return new Promise((resolve) => {
-        const tx = db.transaction(STORE_ALIGNMENTS, 'readonly');
-        const req = tx.objectStore(STORE_ALIGNMENTS).get(taskId);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => resolve(null);
-    });
-}
-
-async function replaceAlignments(records = []) {
-    const db = await openDb();
-    console.log("DB replace Alignment", db)
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_ALIGNMENTS, 'readwrite');
-        const store = tx.objectStore(STORE_ALIGNMENTS);
-        store.clear();
-        records.forEach(record => store.put(record));
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
     });
 }
 
@@ -619,50 +571,12 @@ function extractTaskArray(payload) {
 async function syncAlignmentsFromApi() {
     try {
         const payload = await listTasks();
-        const tasks = extractTaskArray(payload);
-        console.log('[syncAlignmentsFromApi] Total tasks fetched:', tasks.length);
-        const alignmentRecords = [];
-        const now = Date.now();
-        for (const task of tasks) {
-            if (!task?.id) continue;
-            const outputs = collectTaskOutputs(task);
-            const alignmentOutput = findAlignmentOutput(task, outputs);
-            const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-            if (!jsonUrl) continue;
-
-            const statusInfo = getTaskStatusInfo(task);
-            const updatedTimestamp = Date.parse(task.updatedAt || task.completedAt || task.createdAt || '') || now;
-            const createdAtIso = task.createdAt || new Date(updatedTimestamp).toISOString();
-            const updatedAtIso = task.updatedAt || task.completedAt || new Date(updatedTimestamp).toISOString();
-            const audioUrlCandidate = getTaskAudioUrl(task);
-            const audioSources = [];
-            if (audioUrlCandidate) {
-                audioSources.push({
-                    url: audioUrlCandidate,
-                    type: 'task',
-                    addedAt: new Date(updatedTimestamp).toISOString(),
-                });
-            }
-
-            alignmentRecords.push({
-                taskId: task.id,
-                audioUrl: audioUrlCandidate,
-                preferredAudioUrl: audioUrlCandidate,
-                sourceUrl: '',
-                jsonUrl,
-                status: statusInfo.raw || statusInfo.normalized,
-                outputs,
-                audioSources,
-                history: [],
-                rawTask: task,
-                timestamp: updatedTimestamp,
-                createdAt: createdAtIso,
-                updatedAt: updatedAtIso,
-            });
-        }
-        console.log('[syncAlignmentsFromApi] Alignment candidates after filtering:', alignmentRecords.length);
-        await replaceAlignments(alignmentRecords);
-        console.log('[syncAlignmentsFromApi] Stored alignment records:', alignmentRecords.length);
+        const tasks = filterTasksBy(extractTaskArray(payload));
+        tasksCache = matchTasksToAssets(tasks, demoAssetsCache);
+        console.log('[syncAlignmentsFromApi] Cached alignment tasks:', tasksCache.length);
+        refreshAlignmentList();
+        const currentAsset = els.assetList?.value;
+        if (currentAsset) updateAssociatedAlignmentsForAsset(currentAsset);
     } catch (err) {
         console.error('[syncAlignmentsFromApi] Failed to sync tasks:', err);
     }
@@ -738,16 +652,7 @@ async function renderLyricsFromJson(url) {
 function setOutput(msg) { els.output.textContent = msg; }
 
 function populateTaskSelect(list) {
-    if (!els.alignmentList) return;
-    els.alignmentList.innerHTML = '';
-    list.forEach(t => {
-        const opt = new Option(`${t.id}`, t.id);
-        els.alignmentList.add(opt);
-    });
-    if (list.length) {
-        els.alignmentList.value = list[0].id;
-        els.alignmentList.dispatchEvent(new Event('change'));
-    }
+    // Alignment list is managed by refreshAlignmentList().
 }
 
 function populateAssetSelect(list) {
@@ -848,47 +753,24 @@ els.authModal.addEventListener('click', (event) => {
         els.authModal.hidden = true;
         els.authModal.style.display = 'none';
     }
-    await refreshAlignmentList();
+    refreshAlignmentList();
 })();
 
 // Start alignment
 els.startBtn.addEventListener('click', async () => {
     try {
         if (!API_KEY) return alert('Authorize first.');
-        const sourceUrl = els.audioUrl.value.trim();
-        if (!sourceUrl) return alert('Enter an audio URL.');
+       const sourceUrl = els.audioUrl.value.trim();
+       if (!sourceUrl) return alert('Enter an audio URL.');
 
         setOutput('Creating task...');
         const task = await createTask(sourceUrl);
         const result = await pollTask(task.id);
-        const statusInfo = getTaskStatusInfo(result);
-        const outputs = collectTaskOutputs(result);
-        const alignmentOutput = findAlignmentOutput(result, outputs);
-        const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-        console.log('[start] Task status:', statusInfo.raw || statusInfo.normalized, 'Outputs:', outputs.length);
-        if (!jsonUrl) throw new Error('No alignment JSON in outputs.');
-
-        const resolvedAudio = choosePlayableAudio(getTaskAudioUrl(result) || sourceUrl, sourceUrl);
-        if (!resolvedAudio) throw new Error('No playable audio URL.');
-
-        await renderLyricsFromJson(jsonUrl);
-        els.player.src = resolvedAudio;
-        setOutput(`Ready: ${result.id}`);
-
-        const now = Date.now();
-        await saveAlignmentRecord({
-            taskId: result.id,
-            audioUrl: resolvedAudio,
-            sourceUrl,
-            jsonUrl,
-            status: statusInfo.raw || statusInfo.normalized,
-            timestamp: now,
-            createdAt: new Date(now).toISOString(),
-            updatedAt: new Date(now).toISOString(),
-        });
-        await refreshAlignmentList();
-        els.alignmentList.value = result.id;
-        syncTaskIdInputFromAlignment();
+        upsertTaskCache(result);
+        const normalized = getTaskFromCache(result.id);
+        if (!normalized) throw new Error('Task response did not include an alignment output.');
+        els.alignmentList.value = normalized.id;
+        await loadAlignmentTask(normalized);
     } catch (e) {
         setOutput('Error: ' + (e.message || String(e)));
     }
@@ -903,151 +785,324 @@ els.checkBtn.addEventListener('click', async () => {
         const id = (els.taskIdInput.value || '').trim();
         if (!id) return alert('Enter a Task ID.');
 
-        // not needed
-        const fallbackSource = els.audioUrl.value.trim();
+        setOutput(`Fetching task ${id}...`);
+        const rawTask = await getTask(id);
+        upsertTaskCache(rawTask);
+        const task = getTaskFromCache(id);
+        if (!task) {
+            setOutput(`Task ${id} does not include an alignment target yet.`);
+            return;
+        }
 
-        const task = await getTask(id);
         const statusInfo = getTaskStatusInfo(task);
-        const outputs = collectTaskOutputs(task);
-
-        console.log('[checkStatus] Task status:', statusInfo.raw || statusInfo.normalized, 'Outputs:', outputs.map(o => o.name || o.format));
-
-        const normalizedStatus = statusInfo.normalized;
-        if (!(normalizedStatus === 'completed' || normalizedStatus === 'complete')) {
-            console.log('[checkStatus] Task not complete yet:', {
-                taskId: id,
-                status: statusInfo,
-                apiStatus: task?.status,
-            });
+        const normalized = statusInfo.normalized;
+        if (!(normalized === 'completed' || normalized === 'complete')) {
             setOutput(`Task ${id} is ${statusInfo.raw || statusInfo.normalized || 'pending'}...`);
             return;
         }
 
-        const alignmentOutput = findAlignmentOutput(task, outputs);
-        const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-        if (!jsonUrl) return setOutput('Completed task has no JSON asset.');
-
-        const existing = await getAlignment(id);
-        const candidateUrls = [];
-        const taskAudioUrl = getTaskAudioUrl(task);
-        if (taskAudioUrl) candidateUrls.push(taskAudioUrl);
-        if (existing?.sourceUrl) candidateUrls.push(existing.sourceUrl);
-        if (existing?.audioUrl) candidateUrls.push(existing.audioUrl);
-        if (fallbackSource) candidateUrls.push(fallbackSource);
-        const [primaryCandidate, ...fallbackCandidates] = candidateUrls;
-        const resolvedAudio = choosePlayableAudio(primaryCandidate, fallbackCandidates);
-        await renderLyricsFromJson(jsonUrl);
-        if (resolvedAudio) {
-            els.player.src = resolvedAudio;
-            setOutput(`Loaded task ${id}`);
-        } else {
-            els.player.pause();
-            els.player.src = '';
-            setOutput(`Lyrics loaded for ${id}, but audio URL is not playable.`);
-        }
-
-        const now = Date.now();
-        await saveAlignmentRecord({
-            taskId: id,
-            audioUrl: resolvedAudio || '',
-            sourceUrl: fallbackSource || existing?.sourceUrl || '',
-            jsonUrl,
-            status: statusInfo.raw || statusInfo.normalized,
-            timestamp: now,
-            createdAt: new Date(now).toISOString(),
-            updatedAt: new Date(now).toISOString(),
-        });
-        await refreshAlignmentList();
+        await loadAlignmentTask(task);
     } catch (e) {
         setOutput('Error: ' + (e.message || String(e)));
     }
 });
 
-// Helper to extract a short filename from a URL
+// ===== Alignment helpers =====
 function shortFilename(url) {
     if (!url || typeof url !== 'string') return '(no file)';
     try {
-        const urlNoQuery = url.split('?')[0];
-        const lastSlash = urlNoQuery.lastIndexOf('/');
-        if (lastSlash === -1) return urlNoQuery || '(no file)';
-        const name = urlNoQuery.substring(lastSlash + 1);
+        const clean = url.split('?')[0];
+        const lastSlash = clean.lastIndexOf('/');
+        if (lastSlash === -1) return clean || '(no file)';
+        const name = clean.substring(lastSlash + 1);
         return name || '(no file)';
     } catch {
         return '(no file)';
     }
 }
 
-// Saved alignments
-async function refreshAlignmentList() {
-    const items = await getAllAlignments();
+function stripExtension(filename) {
+    if (!filename) return '';
+    const lastDot = filename.lastIndexOf('.');
+    return lastDot > 0 ? filename.slice(0, lastDot) : filename;
+}
 
-    console.log("items", items[0])
+function baseNameFromUrl(url) {
+    return stripExtension(shortFilename(url)).toLowerCase();
+}
 
-    items.sort((a, b) => b.timestamp - a.timestamp);
+function taskTimestamp(task) {
+    return Date.parse(task.updatedAt || task.completedAt || task.createdAt || '') || 0;
+}
+
+function normalizeTaskForCache(task) {
+    if (!task) return null;
+    const candidates = filterTasksBy([task]);
+    return candidates[0] || null;
+}
+
+function upsertTaskCache(task) {
+    const normalized = normalizeTaskForCache(task);
+    if (!normalized) return;
+    const index = tasksCache.findIndex(t => t.id === normalized.id);
+    if (index >= 0) {
+        tasksCache[index] = normalized;
+    } else {
+        tasksCache.push(normalized);
+    }
+    tasksCache = matchTasksToAssets(tasksCache, demoAssetsCache);
+    refreshAlignmentList();
+    if (els.assetList && els.assetList.value) {
+        updateAssociatedAlignmentsForAsset(els.assetList.value);
+    }
+}
+
+function getTaskFromCache(id) {
+    return tasksCache.find(t => t.id === id) || null;
+}
+
+function refreshAlignmentList() {
+    if (!els.alignmentList) return;
+    const previousValue = els.alignmentList.value;
+    const items = tasksCache.slice().sort((a, b) => taskTimestamp(b) - taskTimestamp(a));
     els.alignmentList.innerHTML = '';
     if (items.length === 0) {
         const opt = document.createElement('option');
-        opt.textContent = 'No saved alignments';
-        opt.disabled = true; opt.selected = true;
+        opt.textContent = 'No alignments loaded';
+        opt.disabled = true;
+        opt.selected = true;
         els.alignmentList.appendChild(opt);
+        testOutput({});
+        renderAlignmentMeta(null);
+        updateAssociatedDemoAssetsForTask(null);
         return;
     }
-    for (const a of items) {
+
+    for (const task of items) {
+        const audioUrl = getTaskAudioUrl(task) || task.validSrc || '';
+        const filename = shortFilename(audioUrl);
+        const labelDate = new Date(taskTimestamp(task)).toLocaleString();
+        const status = getTaskStatusInfo(task);
+
         const opt = document.createElement('option');
-
-        // Use helper to extract a short filename from the audio URL
-        const filename = shortFilename(a.audioUrl);
-
-        // Format date nicely
-        const dateStr = new Date(a.timestamp).toLocaleString();
-
-        // Show in dropdown: filename + task id + date
-        opt.textContent = `${filename}  |  ${a.taskId}  |  ${dateStr}`;
-
-        opt.value = a.taskId;
-        opt.dataset.audioUrl = a.audioUrl || '';
-        opt.dataset.jsonUrl = a.jsonUrl || '';
-        opt.dataset.sourceUrl = a.sourceUrl || '';
+        opt.value = task.id;
+        opt.textContent = `${filename} | ${task.id} | ${status.raw || status.normalized || 'unknown'} | ${labelDate}`;
         els.alignmentList.appendChild(opt);
     }
-}
 
-function syncTaskIdInputFromAlignment() {
-    const opt = els.alignmentList?.selectedOptions?.[0];
-    if (!opt || opt.disabled) return;
-    els.taskIdInput.value = opt.value;
-}
-
-els.alignmentList.addEventListener('change', syncTaskIdInputFromAlignment);
-
-// Also dump the saved record JSON when selecting a saved alignment
-els.alignmentList.addEventListener('change', async () => {
-    const id = els.alignmentList.value;
-    if (!id) return;
-    try {
-        const rec = await getAlignment(id);
-        if (rec) testOutput(rec);
-    } catch (err) {
-        console.warn('[alignmentList] Failed to fetch saved record for debug:', err);
+    if (previousValue && items.some(task => task.id === previousValue)) {
+        els.alignmentList.value = previousValue;
+    } else {
+        els.alignmentList.value = items[0].id;
     }
-});
 
+    handleAlignmentSelection(els.alignmentList.value);
+}
 
-els.loadBtn.addEventListener('click', async () => {
-    const opt = els.alignmentList.selectedOptions[0];
-    if (!opt || opt.disabled) return alert('Select a saved alignment.');
-    const audioUrl = opt.dataset.audioUrl;
-    const jsonUrl = opt.dataset.jsonUrl;
-    const sourceUrl = opt.dataset.sourceUrl;
-    if (!jsonUrl) return alert('Saved alignment has no JSON URL.');
+function updateAssociatedAlignmentsForAsset(assetSrc) {
+    if (!els.associatedAlignmentList) return;
+    const select = els.associatedAlignmentList;
+    const previousValue = select.value;
+    select.innerHTML = '';
+
+    if (!assetSrc) {
+        const opt = document.createElement('option');
+        opt.textContent = 'Select a demo asset first';
+        opt.disabled = true;
+        opt.selected = true;
+        select.appendChild(opt);
+        return;
+    }
+
+    const assetBase = baseNameFromUrl(assetSrc);
+    const matches = tasksCache.filter(task => {
+        const taskUrls = [
+            task.validSrc,
+            getTaskAudioUrl(task),
+            ...(Array.isArray(task.audioSources) ? task.audioSources.map(s => s.url) : []),
+        ].filter(Boolean);
+        return taskUrls.some(url => baseNameFromUrl(url) === assetBase);
+    });
+
+    if (!matches.length) {
+        const opt = document.createElement('option');
+        opt.textContent = 'No alignments yet';
+        opt.disabled = true;
+        opt.selected = true;
+        select.appendChild(opt);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const task of matches) {
+        const opt = document.createElement('option');
+        const status = getTaskStatusInfo(task);
+        const updated = new Date(taskTimestamp(task)).toLocaleString();
+        opt.value = task.id;
+        opt.textContent = `${task.id} (${status.raw || status.normalized || 'unknown'}) – ${updated}`;
+        fragment.appendChild(opt);
+    }
+    select.appendChild(fragment);
+    if (previousValue && matches.some(task => task.id === previousValue)) {
+        select.value = previousValue;
+    } else {
+        select.value = matches[0].id;
+    }
+}
+
+function cleanKey(str) {
+    return (str || '').replace(/[^a-z0-9]+/gi, '').toLowerCase();
+}
+
+function tokenizeName(str) {
+    return (str || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function fuzzyEquals(a, b) {
+    if (!a || !b) return false;
+    const ca = cleanKey(a);
+    const cb = cleanKey(b);
+    if (!ca || !cb) return false;
+    if (ca === cb) return true;
+    if (ca.includes(cb) || cb.includes(ca)) return true;
+
+    const tokensA = tokenizeName(a);
+    const tokensB = tokenizeName(b);
+    if (!tokensA.length || !tokensB.length) return false;
+
+    const shared = tokensB.filter(token => tokensA.includes(token));
+    if (shared.length >= 2) return true;
+    if (tokensA[0] && tokensA[0] === tokensB[0] && shared.length >= 1) return true;
+
+    return false;
+}
+
+function updateAssociatedDemoAssetsForTask(task) {
+    if (!els.associatedDemoAssetList) return;
+    const select = els.associatedDemoAssetList;
+    const previousValue = select.value;
+    select.innerHTML = '';
+
+    if (!task || !demoAssetsCache.length) {
+        const opt = document.createElement('option');
+        opt.textContent = demoAssetsCache.length ? 'Select an alignment to see demo assets' : 'No demo assets loaded';
+        opt.disabled = true;
+        opt.selected = true;
+        select.appendChild(opt);
+        return;
+    }
+
+    const taskBaseNames = new Set();
+    [
+        task.validSrc,
+        getTaskAudioUrl(task),
+        ...(Array.isArray(task.audioSources) ? task.audioSources.map(s => s.url) : []),
+    ].forEach(url => {
+        const base = baseNameFromUrl(url);
+        if (base) taskBaseNames.add(base);
+    });
+
+    const matches = demoAssetsCache.filter(asset => {
+        const assetBase = baseNameFromUrl(asset.src);
+        if (!assetBase) return false;
+        for (const taskBase of taskBaseNames) {
+            if (!taskBase) continue;
+            if (fuzzyEquals(assetBase, taskBase)) return true;
+        }
+        return false;
+    });
+
+    if (!matches.length) {
+        const opt = document.createElement('option');
+        opt.textContent = 'No matching demo assets';
+        opt.disabled = true;
+        opt.selected = true;
+        select.appendChild(opt);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const asset of matches) {
+        const opt = document.createElement('option');
+        opt.value = asset.src;
+        opt.textContent = asset.title || shortFilename(asset.src);
+        fragment.appendChild(opt);
+    }
+    select.appendChild(fragment);
+    if (previousValue && matches.some(asset => asset.src === previousValue)) {
+        select.value = previousValue;
+    } else {
+        select.value = matches[0].src;
+    }
+}
+
+async function loadAlignmentTask(task) {
+    if (!task) return;
+    const outputs = collectTaskOutputs(task);
+    const alignmentOutput = findAlignmentOutput(task, outputs);
+    const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
+    if (!jsonUrl) {
+        setOutput('Selected alignment has no JSON output.');
+        return;
+    }
+
     try {
-
         await renderLyricsFromJson(jsonUrl);
-        els.player.src = sourceUrl
-    } catch (e) {
-        setOutput('Error: ' + (e.message || String(e)));
+    } catch (err) {
+        console.error('[loadAlignmentTask] Failed to render lyrics', err);
+        setOutput('Failed to load alignment lyrics.');
+        return;
     }
-});
+
+    const candidateUrls = [];
+    if (task.validSrc) candidateUrls.push(task.validSrc);
+    const taskAudio = getTaskAudioUrl(task);
+    if (taskAudio) candidateUrls.push(taskAudio);
+    const typedSource = els.audioUrl.value.trim();
+    if (typedSource) candidateUrls.push(typedSource);
+    const [primary, ...fallback] = candidateUrls;
+    const resolved = choosePlayableAudio(primary, fallback);
+    if (resolved) {
+        els.player.src = resolved;
+        setOutput(`Loaded alignment ${task.id}`);
+    } else {
+        els.player.pause();
+        els.player.src = '';
+        setOutput(`Lyrics loaded for ${task.id}, but no playable audio found. Use Associated Demo Assets to pick audio.`);
+    }
+
+    renderAlignmentMeta(task);
+    testOutput(task);
+    els.taskIdInput.value = task.id;
+    localStorage.setItem('lastSelectedAlignment', task.id);
+    updateAssociatedDemoAssetsForTask(task);
+}
+
+async function handleAlignmentSelection(id) {
+    if (!id) return;
+    if (els.alignmentList) {
+        els.alignmentList.value = id;
+    }
+    let task = getTaskFromCache(id);
+    if (!task) {
+        try {
+            const raw = await getTask(id);
+            upsertTaskCache(raw);
+            task = getTaskFromCache(id);
+        } catch (err) {
+            console.error('[handleAlignmentSelection] Failed to fetch task', err);
+            setOutput('Failed to fetch alignment from API.');
+            return;
+        }
+    }
+
+    await loadAlignmentTask(task);
+
+    if (els.associatedAlignmentList) {
+        const option = Array.from(els.associatedAlignmentList.options || []).find(opt => opt.value === id);
+        if (option) els.associatedAlignmentList.value = id;
+    }
+}
 
 // ===== App Initialization =====
 async function initApp() {
@@ -1062,10 +1117,7 @@ async function initApp() {
         }
         API_KEY = savedKey;
         console.log('[initApp] Loaded API key');
-        const payload = await listTasks();
-        const arr = extractTaskArray(payload);
-        tasksCache = filterTasksBy(arr);
-        console.log(`[initApp] Loaded ${tasksCache.length} alignment tasks (filtered by ${FILTER_MODEL})`);
+        await syncAlignmentsFromApi();
         populateTaskSelect(tasksCache);
     } catch (err) {
         console.error('[initApp] Failed to load tasks', err);
@@ -1077,75 +1129,22 @@ async function initApp() {
 async function loadAssetAndLyrics(selectedSrc) {
     if (!selectedSrc || !els?.player) return;
 
+    if (els.lyrics) els.lyrics.innerHTML = '';
+
     const selectedAsset = demoAssetsCache.find(a => a?.src === selectedSrc);
     if (!selectedAsset) {
         setOutput('Selected asset not found.');
         return;
     }
 
-    const assetFilename = selectedAsset.src.split('/').pop().split('?')[0].toLowerCase();
-    const matchedTasks = tasksCache.filter(task => {
-        const taskFile = getTaskAudioUrl(task)?.split('/').pop()?.split('?')[0]?.toLowerCase();
-        return taskFile === assetFilename;
-    });
-
-    console.log(`[loadAssetAndLyrics] Found ${matchedTasks.length} matching tasks for ${assetFilename}`);
-
-    if (els.associatedAlignmentList) {
-        els.associatedAlignmentList.innerHTML = '';
-        if (matchedTasks.length === 0) {
-            const opt = document.createElement('option');
-            opt.textContent = 'No alignments yet';
-            opt.disabled = true; opt.selected = true;
-            els.associatedAlignmentList.appendChild(opt);
-        } else {
-            matchedTasks.forEach(task => {
-                const opt = document.createElement('option');
-                const status = getTaskStatusInfo(task);
-                const updated = new Date(task.updatedAt || task.completedAt || task.createdAt || '').toLocaleString();
-                opt.value = task.id;
-                opt.textContent = `${task.id} (${status.raw || 'unknown'}) - ${updated}`;
-                els.associatedAlignmentList.appendChild(opt);
-            });
-        }
-    }
-
-    if (matchedTasks.length > 0) {
-        els.associatedAlignmentList.value = matchedTasks[0].id;
-    }
-    // Show JSON immediately so the user sees the data without another click
-    if (matchedTasks.length > 0) {
-        testOutput(matchedTasks[0]); // first matching task JSON
-    } else {
-        const selectedAsset = demoAssetsCache.find(a => a?.src === selectedSrc);
-        if (selectedAsset) testOutput(selectedAsset); // show asset JSON if no task match
-    }
-
     els.player.src = selectedAsset.src;
     els.audioUrl.value = selectedAsset.src;
     els.audioUrl.dispatchEvent(new Event('change'));
-
-    // Handle lyric loading based on number of matched tasks
-    if (matchedTasks.length === 1) {
-        const task = matchedTasks[0];
-        const outputs = collectTaskOutputs(task);
-        const alignmentOutput = findAlignmentOutput(task, outputs);
-        const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-        if (jsonUrl) {
-            try {
-                await renderLyricsFromJson(jsonUrl);
-                els.player.src = selectedAsset.src;
-                setOutput(`Auto-loaded lyrics for "${selectedAsset.title}"`);
-            } catch (err) {
-                console.error('[loadAssetAndLyrics] Auto-load failed:', err);
-                setOutput('Failed to auto-load lyrics. Try selecting manually.');
-            }
-        }
-    } else if (matchedTasks.length > 1) {
-        setOutput(`Select an associated alignment to load lyrics for "${selectedAsset.title}"`);
-    } else {
-        setOutput(`No alignments found for "${selectedAsset.title}". Click "Start Alignment" to create one.`);
-    }
+    localStorage.setItem('lastSelectedAsset', selectedAsset.src);
+    updateAssociatedAlignmentsForAsset(selectedAsset.src);
+    updateAssociatedDemoAssetsForTask(null);
+    testOutput(selectedAsset);
+    setOutput(`Loaded demo asset: ${selectedAsset.title || shortFilename(selectedAsset.src)}. Pick an associated alignment to view lyrics.`);
 }
 
 // Modified to use loadAssetAndLyrics
@@ -1191,8 +1190,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 console.log('[restoreState] Restored asset', lastAsset);
             }
-            if (lastAlignment && els.associatedAlignmentList) {
-                els.associatedAlignmentList.value = lastAlignment;
+            if (lastAlignment && els.alignmentList && getTaskFromCache(lastAlignment)) {
+                els.alignmentList.value = lastAlignment;
+                handleAlignmentSelection(lastAlignment);
                 console.log('[restoreState] Restored alignment', lastAlignment);
             }
 
@@ -1211,69 +1211,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.loadAssetBtn) {
         els.loadAssetBtn.addEventListener('click', loadSelectedDemoAsset);
     }
-});
-
-els.associatedAlignmentList?.addEventListener('change', async e => {
-    // Clear existing lyrics when switching alignments
-    if (els.lyrics) els.lyrics.innerHTML = '';
-    els.player.pause();
-    els.player.src = '';
-
-    const selectedId = e.target.value;
-    const task = tasksCache.find(t => t.id === selectedId);
-    if (!task) {
-        currentAlignmentTask = null;
-        renderAlignmentMeta(null);
-        setOutput('No alignment selected.');
-        return;
+    if (els.alignmentList) {
+        els.alignmentList.addEventListener('change', () => handleAlignmentSelection(els.alignmentList.value));
     }
-
-    currentAlignmentTask = task;
-    renderAlignmentMeta(task);
-    // Also show the raw task object for inspection
-    testOutput(task);
-    const status = getTaskStatusInfo(task);
-    const updated = new Date(task.updatedAt || task.completedAt || task.createdAt || '').toLocaleString();
-    setOutput(`Selected alignment ${task.id} (${status.raw || 'unknown'}) updated ${updated}`);
-
-    const outputs = collectTaskOutputs(task);
-    const alignmentOutput = findAlignmentOutput(task, outputs);
-    const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-    if (jsonUrl) {
-        try {
-            await renderLyricsFromJson(jsonUrl);
-            els.player.src = task.validSrc || getTaskAudioUrl(task) || els.audioUrl.value;
-            setOutput(`Loaded lyrics for ${task.id}`);
-            localStorage.setItem('lastSelectedAsset', els.assetList?.value || '');
-            localStorage.setItem('lastSelectedAlignment', task.id);
-        } catch (err) {
-            console.error('[associatedAlignmentList] Error loading lyrics:', err);
-            setOutput('Failed to auto-load lyrics. Try pressing Load.');
-        }
+    if (els.loadBtn) {
+        els.loadBtn.addEventListener('click', () => handleAlignmentSelection(els.alignmentList?.value));
     }
 });
 
-// Associated alignment loader
-els.loadAssociatedAssetBtn?.addEventListener('click', async () => {
-    const selectedId = els.associatedAlignmentList?.value;
-    if (!selectedId || selectedId === 'No alignments yet') return alert('Select an alignment first.');
+els.associatedAlignmentList?.addEventListener('change', () => {
+    const id = els.associatedAlignmentList.value;
+    handleAlignmentSelection(id);
+});
 
-    const task = tasksCache.find(t => t.id === selectedId);
-    if (!task) return alert('Task not found.');
+els.loadAssociatedAssetBtn?.addEventListener('click', () => {
+    const id = els.associatedAlignmentList?.value;
+    if (!id) return alert('Select an alignment first.');
+    handleAlignmentSelection(id);
+});
 
-    const outputs = collectTaskOutputs(task);
-    const alignmentOutput = findAlignmentOutput(task, outputs);
-    const jsonUrl = alignmentOutput?.link || alignmentOutput?.url;
-    if (!jsonUrl) return alert('Selected alignment has no JSON URL.');
+els.associatedDemoAssetList?.addEventListener('change', e => {
+    const src = e.target.value;
+    if (!src) return;
+    const asset = demoAssetsCache.find(a => a?.src === src);
+    if (asset) testOutput(asset);
+});
 
-    try {
-        await renderLyricsFromJson(jsonUrl);
-        els.player.src = task.validSrc || getTaskAudioUrl(task) || els.audioUrl.value;
-        setOutput(`Loaded lyrics from alignment task ${task.id}`);
-    } catch (err) {
-        console.error('[loadAssociatedAssetBtn] Failed to load lyrics', err);
-        setOutput('Error loading alignment.');
-    }
+els.loadAssociatedDemoAssetBtn?.addEventListener('click', () => {
+    const option = els.associatedDemoAssetList?.selectedOptions?.[0];
+    if (!option || option.disabled) return alert('Select a demo asset first.');
+    const asset = demoAssetsCache.find(a => a?.src === option.value);
+    if (!asset) return alert('Asset not found.');
+    els.player.src = asset.src;
+    els.audioUrl.value = asset.src;
+    els.audioUrl.dispatchEvent(new Event('change'));
+    if (els.assetList) els.assetList.value = asset.src;
+    setOutput(`Loaded demo asset ${asset.title || shortFilename(asset.src)} for playback.`);
 });
 // ===== Debug/Test UI Section Event Listeners =====
 /// clear output
